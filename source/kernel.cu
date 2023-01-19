@@ -22,7 +22,7 @@ static void distance_horizontal(
     int width, int height, int image_stride, int buffer_stride,
     int offset_x, int offset_y,
     int block_radius, ChannelMode channels,
-    float sq_inv_divisor
+    float inv_divisor
 ) {
 
     int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -31,9 +31,9 @@ static void distance_horizontal(
         return ;
     }
 
-    auto scale = [sq_inv_divisor](float x) -> float {
+    auto scale = [inv_divisor](float x) -> float {
         if constexpr (!std::is_floating_point_v<T>) {
-            x *= sq_inv_divisor;
+            x *= square(inv_divisor);
         }
         return x;
     };
@@ -88,7 +88,7 @@ static void distance_horizontal(
                 auto center_b = static_cast<float>(src[(2 * height + y) * image_stride + clamp_x(x + i)]);
                 auto neighbor_b = static_cast<float>(neighbor_src[(2 * height + clamp_y(y + offset_y)) * image_stride + clamp_x(clamp_x(x + i) + offset_x)]);
                 auto diff_b = center_b - neighbor_b;
-                auto weight = (center_r + neighbor_r) / 6;
+                auto weight = (center_r + neighbor_r) / 6 * inv_divisor;
                 local_buffer[threadIdx.y * local_buffer_stride + i] = scale(
                     (2.0f / 3.0f + weight) * square(diff_r) +
                     (4.0f / 3.0f) * square(diff_g) +
@@ -141,7 +141,7 @@ static void distance_horizontal_dispatch(
             );
         }
     } else {
-        float sq_inv_divisor = square(1.0f / ((1 << bits_per_sample) - 1));
+        float inv_divisor = 1.0f / ((1 << bits_per_sample) - 1);
 
         if (bits_per_sample <= 8) {
             distance_horizontal<uint8_t, results_per_thread><<<grid, block, dyn_smem_size, stream>>>(
@@ -150,7 +150,7 @@ static void distance_horizontal_dispatch(
                 static_cast<const uint8_t *>(src) + neighbor_src_offset,
                 width, height, image_stride, buffer_stride,
                 offset_x, offset_y,
-                block_radius, channels, sq_inv_divisor
+                block_radius, channels, inv_divisor
             );
         } else if (bits_per_sample <= 16) {
             distance_horizontal<uint16_t, results_per_thread><<<grid, block, dyn_smem_size, stream>>>(
@@ -159,7 +159,7 @@ static void distance_horizontal_dispatch(
                 static_cast<const uint16_t *>(src) + neighbor_src_offset,
                 width, height, image_stride, buffer_stride,
                 offset_x, offset_y,
-                block_radius, channels, sq_inv_divisor
+                block_radius, channels, inv_divisor
             );
         }
     }
