@@ -1,0 +1,101 @@
+name: Build (Windows)
+
+on:
+  push:
+    paths:
+      - 'CMakeLists.txt'
+      - 'source/*'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'which tag to upload to'
+        default: ''
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - name: Setup MSVC
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup Ninja
+      run: pip install ninja
+
+    - name: Cache CUDA
+      id: cache-cuda
+      uses: actions/cache@v3
+      with:
+        path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
+        key: ${{ runner.os }}-cuda-11.8.0
+
+    - name: Setup CUDA
+      if: steps.cache-cuda.outputs.cache-hit != 'true'
+      run: |
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
+        cuda_installer.exe -s nvcc_11.8 cudart_11.8 nvrtc_dev_11.8
+
+    - name: Download VapourSynth headers
+      run: |
+        curl -s -o vs.zip -L https://github.com/vapoursynth/vapoursynth/archive/refs/tags/R57.zip
+        unzip -q vs.zip
+        mv vapoursynth-*/ vapoursynth/
+
+    - name: Configure
+      run: cmake -S . -B build_cuda -G Ninja -LA
+        -D CMAKE_BUILD_TYPE=Release
+        -D VS_INCLUDE_DIR="%cd%\vapoursynth\include"
+        -D CMAKE_CXX_FLAGS="/fp:fast /EHsc"
+        -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+        -D CMAKE_CUDA_FLAGS="--threads 0 --use_fast_math --resource-usage -Wno-deprecated-gpu-targets"
+        -D CMAKE_CUDA_ARCHITECTURES="50;61-real;70-virtual;75-real;86-real;89-real"
+      env:
+        CUDA_PATH: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+        CUDA_PATH_V11_8: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+
+    - name: Build
+      run: cmake --build build_cuda --verbose
+
+    - name: Install
+      run: cmake --install build_cuda --prefix install
+
+    - name: Prepare for upload
+      run: |
+        mkdir artifact
+        copy install\bin\*.dll artifact
+
+    - name: Upload
+      uses: actions/upload-artifact@v3
+      with:
+        name: vs-nlm-cuda-windows
+        path: artifact
+
+    - name: Compress artifact for release
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      run: |
+        cd artifact
+
+        mkdir vs-nlm-cuda-windows-${{ github.event.inputs.tag }}
+        xcopy vsnlm_cuda.dll vs-nlm-cuda-windows-${{ github.event.inputs.tag }} /f
+        7z a -t7z -mx=9 ../vs-nlm-cuda-windows-${{ github.event.inputs.tag }}.7z vs-nlm-cuda-windows-${{ github.event.inputs.tag }}
+
+    - name: Release
+      uses: softprops/action-gh-release@v1
+      if: github.event_name == 'workflow_dispatch' && github.event.inputs.tag != ''
+      with:
+        tag_name: ${{ github.event.inputs.tag }}
+        files: vs-nlm-cuda-windows-${{ github.event.inputs.tag }}.7z
+        fail_on_unmatched_files: true
+        generate_release_notes: false
+        prerelease: true
+
