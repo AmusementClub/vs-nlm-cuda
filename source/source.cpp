@@ -441,7 +441,7 @@ static void VS_CC NLMeansCreate(
 
     d->radius = int64ToIntS(vsapi->propGetInt(in, "d", 0, &error));
     if (error) {
-        d->radius = 0;
+        d->radius = 1;
     }
 
     d->spatial_radius = int64ToIntS(vsapi->propGetInt(in, "a", 0, &error));
