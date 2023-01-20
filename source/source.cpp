@@ -443,20 +443,32 @@ static void VS_CC NLMeansCreate(
     if (error) {
         d->radius = 1;
     }
+    if (d->radius < 0) {
+        return set_error("\"d\" must be non-negative");
+    }
 
     d->spatial_radius = int64ToIntS(vsapi->propGetInt(in, "a", 0, &error));
     if (error) {
         d->spatial_radius = 2;
+    }
+    if (d->spatial_radius <= 0) {
+        return set_error("\"a\" must be positive");
     }
 
     d->block_radius = int64ToIntS(vsapi->propGetInt(in, "s", 0, &error));
     if (error) {
         d->block_radius = 4;
     }
+    if (d->block_radius < 0) {
+        return set_error("\"s\" must be non-negative");
+    }
 
     auto h = vsapi->propGetFloat(in, "h", 0, &error);
     if (error) {
         h = 1.2;
+    }
+    if (h <= 0.0) {
+        return set_error("\"h\" must be positive");
     }
     d->h2_inv_norm = static_cast<float>(square(255) / (3 * square(2 * d->block_radius + 1) * square(h)));
 
@@ -536,6 +548,9 @@ static void VS_CC NLMeansCreate(
     int num_streams = int64ToIntS(vsapi->propGetInt(in, "num_streams", 0, &error));
     if (error) {
         num_streams = 1;
+    }
+    if (num_streams <= 0) {
+        return set_error("\"num_streams\" must be positive");
     }
     d->semaphore.current.store(num_streams - 1, std::memory_order::relaxed);
     d->ticket.reserve(num_streams);
