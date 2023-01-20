@@ -38,8 +38,10 @@ static void distance_horizontal(
         return x;
     };
 
-    extern __shared__ float local_buffer[]; // shape: (block_h, results_per_thread * block_w + 2 * nlm_s + padding)
-    int local_buffer_stride = (results_per_thread * blockDim.x + 2 * block_radius + 31) / 32 * 32;
+    extern __shared__ float local_buffer[]; // shape: (block_h, results_per_thread * block_w + 2 * nlm_s)
+    // ignores bank conflicts here for higher occupancy
+    // at most (32 / blockDim.x) smem requests generated per instruction
+    int local_buffer_stride = results_per_thread * blockDim.x + 2 * block_radius;
 
     auto clamp_x = [width](int coord) { return min(max(coord, 0), width - 1); };
     auto clamp_y = [height](int coord) { return min(max(coord, 0), height - 1); };
@@ -448,7 +450,7 @@ cudaError_t nlmeans(
 
     constexpr int hrz_result = 3;
     dim3 hrz_grid { (width + hrz_result * block.x - 1) / (hrz_result * block.x), (height + block.y - 1) / block.y, 1 };
-    int hrz_smem_stride = (hrz_result * block.x + 2 * block_radius + 31) / 32 * 32;
+    int hrz_smem_stride = hrz_result * block.x + 2 * block_radius;
     auto hrz_smem = block.y * hrz_smem_stride * sizeof(float);
 
     constexpr int vrt_result = 3;
