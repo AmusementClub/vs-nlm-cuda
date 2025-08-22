@@ -14,7 +14,7 @@ on:
 
 jobs:
   build-windows:
-    runs-on: windows-2022
+    runs-on: windows-2025
 
     defaults:
       run:
@@ -22,7 +22,7 @@ jobs:
 
     steps:
     - name: Checkout repo
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
       with:
         submodules: true
 
@@ -34,16 +34,16 @@ jobs:
 
     - name: Cache CUDA
       id: cache-cuda
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA
-        key: ${{ runner.os }}-cuda-11.8.0
+        key: ${{ runner.os }}-cuda-12.9.1
 
     - name: Setup CUDA
       if: steps.cache-cuda.outputs.cache-hit != 'true'
       run: |
-        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/11.8.0/network_installers/cuda_11.8.0_windows_network.exe
-        cuda_installer.exe -s nvcc_11.8 cudart_11.8 nvrtc_dev_11.8
+        curl -s -o cuda_installer.exe -L https://developer.download.nvidia.com/compute/cuda/12.9.1/network_installers/cuda_12.9.1_windows_network.exe
+        cuda_installer.exe -s nvcc_12.9 cudart_12.9 nvrtc_dev_12.9
 
     - name: Download VapourSynth headers
       run: |
@@ -58,10 +58,9 @@ jobs:
         -D CMAKE_CXX_FLAGS="/fp:fast /EHsc"
         -D CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
         -D CMAKE_CUDA_FLAGS="--threads 0 --use_fast_math --resource-usage -Wno-deprecated-gpu-targets"
-        -D CMAKE_CUDA_ARCHITECTURES="50;61-real;70-virtual;75-real;86-real;89-real"
+        -D CMAKE_CUDA_ARCHITECTURES="50;61-real;70-virtual;75-real;86-real;89-real;120-real"
       env:
-        CUDA_PATH: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
-        CUDA_PATH_V11_8: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8
+        CUDA_PATH: C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.9
 
     - name: Build
       run: cmake --build build_cuda --verbose
@@ -75,7 +74,7 @@ jobs:
         copy install\bin\*.dll artifact
 
     - name: Upload
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vs-nlm-cuda-windows
         path: artifact
